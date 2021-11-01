@@ -44,17 +44,20 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
         if self.fake_fakes_proba > 1e-3:
             self.fake_fakes_gen = FakeFakesGenerator(**(fake_fakes_generator_kwargs or {}))
 
-    def forward(self, batch):
-        if self.training and self.rescale_size_getter is not None:
-            cur_size = self.rescale_size_getter(self.global_step)
-            batch['image'] = F.interpolate(batch['image'], size=cur_size, mode='bilinear', align_corners=False)
-            batch['mask'] = F.interpolate(batch['mask'], size=cur_size, mode='nearest')
+    def forward(self, img_and_mask):
+        # if self.training and self.rescale_size_getter is not None:
+        #     cur_size = self.rescale_size_getter(self.global_step)
+        #     batch['image'] = F.interpolate(batch['image'], size=cur_size, mode='bilinear', align_corners=False)
+        #     batch['mask'] = F.interpolate(batch['mask'], size=cur_size, mode='nearest')
 
-        if self.training and self.const_area_crop_kwargs is not None:
-            batch = make_constant_area_crop_batch(batch, **self.const_area_crop_kwargs)
+        # if self.training and self.const_area_crop_kwargs is not None:
+        #     batch = make_constant_area_crop_batch(batch, **self.const_area_crop_kwargs)
 
-        img = batch['image']
-        mask = batch['mask']
+        # img = batch['image']
+        # mask = batch['mask']
+
+        img = img_and_mask[:, :-1, :, :]
+        mask = img_and_mask[:, 3:, :, :]
 
         masked_img = img * (1 - mask)
 
@@ -65,25 +68,30 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
             masked_img = torch.cat([masked_img, noise], dim=1)
 
         if self.concat_mask:
-            masked_img = torch.cat([masked_img, mask], dim=1)
+            masked_img = img_and_mask   # torch.cat([masked_img, mask], dim=1)
 
-        batch['predicted_image'] = self.generator(masked_img)
-        batch['inpainted'] = mask * batch['predicted_image'] + (1 - mask) * batch['image']
+        # batch = {}
+        # batch['predicted_image'] = self.generator(masked_img)
+        # batch['inpainted'] = mask * batch['predicted_image'] + (1 - mask) * batch['image']
 
-        if self.fake_fakes_proba > 1e-3:
-            if self.training and torch.rand(1).item() < self.fake_fakes_proba:
-                batch['fake_fakes'], batch['fake_fakes_masks'] = self.fake_fakes_gen(img, mask)
-                batch['use_fake_fakes'] = True
-            else:
-                batch['fake_fakes'] = torch.zeros_like(img)
-                batch['fake_fakes_masks'] = torch.zeros_like(mask)
-                batch['use_fake_fakes'] = False
+        predicted_image = self.generator(masked_img)
+        inpainted = mask * predicted_image + (1 - mask) * img
 
-        batch['mask_for_losses'] = self.refine_mask_for_losses(img, batch['predicted_image'], mask) \
-            if self.refine_mask_for_losses is not None and self.training \
-            else mask
 
-        return batch
+        # if self.fake_fakes_proba > 1e-3:
+        #     if self.training and torch.rand(1).item() < self.fake_fakes_proba:
+        #         batch['fake_fakes'], batch['fake_fakes_masks'] = self.fake_fakes_gen(img, mask)
+        #         batch['use_fake_fakes'] = True
+        #     else:
+        #         batch['fake_fakes'] = torch.zeros_like(img)
+        #         batch['fake_fakes_masks'] = torch.zeros_like(mask)
+        #         batch['use_fake_fakes'] = False
+
+        # mask_for_losses = self.refine_mask_for_losses(img, predicted_image, mask) \
+        #     if self.refine_mask_for_losses is not None and self.training \
+        #     else mask
+
+        return predicted_image
 
     def generator_loss(self, batch):
         img = batch['image']
