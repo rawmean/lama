@@ -61,11 +61,11 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
 
         masked_img = img * (1 - mask)
 
-        if self.add_noise_kwargs is not None:
-            noise = make_multiscale_noise(masked_img, **self.add_noise_kwargs)
-            if self.noise_fill_hole:
-                masked_img = masked_img + mask * noise[:, :masked_img.shape[1]]
-            masked_img = torch.cat([masked_img, noise], dim=1)
+        # if self.add_noise_kwargs is not None:
+        #     noise = make_multiscale_noise(masked_img, **self.add_noise_kwargs)
+        #     if self.noise_fill_hole:
+        #         masked_img = masked_img + mask * noise[:, :masked_img.shape[1]]
+        #     masked_img = torch.cat([masked_img, noise], dim=1)
 
         if self.concat_mask:
             masked_img = img_and_mask   # torch.cat([masked_img, mask], dim=1)
@@ -91,7 +91,7 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
         #     if self.refine_mask_for_losses is not None and self.training \
         #     else mask
 
-        return predicted_image
+        return inpainted
 
     def generator_loss(self, batch):
         img = batch['image']
